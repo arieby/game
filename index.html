@@ -26,6 +26,62 @@
         
         .answer-input { width: 90%; padding: 12px; border-radius: 12px; border: none; font-size: 18px; text-align: center; font-family: 'Cairo'; margin-top: 15px; }
         
+        .vote-header {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px 25px;
+    border-radius: 20px;
+    border-right: 5px solid var(--accent);
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+    width: 90%;
+    max-width: 600px;
+}
+
+.vote-icon {
+    font-size: 35px;
+    margin-left: 15px;
+    filter: drop-shadow(0 0 10px var(--accent));
+}
+
+.vote-title-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.vote-main-title {
+    margin: 0;
+    font-size: 24px;
+    color: var(--accent);
+    text-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+}
+
+.vote-subtitle {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: normal;
+}
+
+/* تأثير النبض الخفيف لزيادة الحماس */
+.vote-pulse {
+    position: absolute;
+    left: 15px;
+    width: 10px;
+    height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(0, 255, 204, 0.4);
+    animation: pulse-animation 2s infinite;
+}
+
+@keyframes pulse-animation {
+    0% { box-shadow: 0 0 0 0 rgba(0, 255, 204, 0.7); }
+    70% { box-shadow: 0 0 0 15px rgba(0, 255, 204, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 255, 204, 0); }
+}
+
         /* صندوق تذكير السؤال في التصويت */
         .vote-q-reminder { 
             background: #000; 
@@ -120,10 +176,22 @@
         </div>
 
         <div id="votingPhase" class="voting-area hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-            <h3 style="margin:0;">صوّت الآن 🤔</h3>
+<div class="vote-header">
+    <div class="vote-icon">🤔</div>
+    <div class="vote-title-container">
+        <h3 class="vote-main-title">مرحلة التصويت الآن</h3>
+        <span class="vote-subtitle"> لو اعجبتك الاجابات صوت لهم ولو لم تعجبك صوت بعدم الاعجاب</span>
+    </div>
+    <div class="vote-pulse"></div>
+</div>
             <div id="voteQuestionReminder" class="vote-q-reminder"></div>
             <div id="answersList" style="width: 100%; display: flex; flex-direction: column; align-items: center;"></div>
         </div>
+<div class="main-content">
+    <div style="font-size: 14px; margin-bottom: 5px; color: #eee; opacity: 0.8;">
+        الجولة :  <span id="currentRoundNumber" style="color: var(--accent); font-weight: bold;">0</span> / 15
+    </div>
+
     </div>
 
 <script type="module">
@@ -189,19 +257,28 @@
 
 let lastStatus = ""; 
 let localTimer;
-
-// تعريف ملفات الصوت (تأكد من وجود إنترنت لتحميلها)
+// تعريف ملفات الصوت مع خفض الحجم
 const startSfx = new Audio('https://www.soundjay.com/buttons_c2026/sounds/button-09a.mp3'); 
-const tickSfx = new Audio('');  
-const voteSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
-const endSfx = new Audio('https://www.soundjay.com/buttons/sounds/beep-07.mp3'); // صوت صافرة النهاية 
+startSfx.volume = 0.2; // خفض الصوت إلى 20%
 
+const tickSfx = new Audio(''); // أضف الرابط هنا إذا توفر
+tickSfx.volume = 0.1; // صوت التكتكة يفضل أن يكون خافتاً جداً
+
+const voteSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
+voteSfx.volume = 0.2;
+
+const endSfx = new Audio('https://www.soundjay.com/buttons/sounds/beep-07.mp3'); 
+endSfx.volume = 0.3; // صوت صافرة النهاية
 
 onValue(ref(db, 'game'), (snap) => {
     const data = snap.val();
     if(!data) return;
     
-    // --- 1. منطق العداد الزمني المطور ---
+    // --- 1. تحديث رقم الجولة في الواجهة ---
+    const roundEl = document.getElementById('currentRoundNumber');
+    if(roundEl) roundEl.innerText = data.roundCount || 0;
+
+    // --- 2. منطق العداد الزمني المطور ---
     if(localTimer) clearInterval(localTimer);
 
     const updateDisplay = () => {
@@ -209,12 +286,10 @@ onValue(ref(db, 'game'), (snap) => {
         const diff = Math.max(0, Math.floor((data.endTime - now) / 1000));
         document.getElementById('timer').innerText = diff;
 
-        // صوت التكتكة في آخر 5 ثوانٍ من الكتابة
         if (data.status === "writing" && diff <= 5 && diff > 0) {
             tickSfx.play().catch(() => {}); 
         }
 
-        // للمسؤول: نقل الجولة تلقائياً عند انتهاء الوقت
         if (isAdmin && diff <= 0) {
             clearInterval(localTimer);
             if (data.status === "writing") startVotingPhase();
@@ -225,10 +300,39 @@ onValue(ref(db, 'game'), (snap) => {
     localTimer = setInterval(updateDisplay, 1000);
     updateDisplay(); 
 
-    // --- 2. معالجة تغير الحالات (أصوات وتصفير حقول) ---
+    // --- 3. معالجة الحالات الخاصة (نتائج نهائية / كتابة / تصويت) ---
+
+    // أولاً: حالة انتهاء الشوط (15 جولة) وإعلان الفائز
+    if (data.status === "final_results") {
+        document.getElementById('writingPhase').classList.remove('hidden');
+        document.getElementById('votingPhase').classList.add('hidden');
+        document.getElementById('letterDisplay').classList.add('hidden');
+        document.getElementById('myAnswer').classList.add('hidden'); // إخفاء حقل الإدخال
+
+        get(ref(db, 'players')).then((pSnap) => {
+            const players = pSnap.val();
+            const sorted = Object.values(players).sort((a,b) => b.points - a.points);
+            const winner = sorted[0];
+            
+            document.getElementById('qText').innerHTML = `
+                <div style="padding: 15px; border: 2px solid var(--accent); border-radius: 15px; background: rgba(0,255,204,0.05);">
+                    <h2 style="color: var(--accent); margin:0;">🏆 بطل الشوط 🏆</h2>
+                    <h1 style="font-size: 32px; margin: 10px 0;">${winner.name}</h1>
+                    <p style="font-size: 18px;">رصيد النقاط: ${winner.points}</p>
+                    <hr style="border:0; border-top:1px solid #444; margin:15px 0;">
+                    ${isAdmin ? '<button onclick="resetGameForNewSeason()" class="admin-btn btn-new">🔄 بدء شوط جديد</button>' : '<span>انتظر المسؤول لبدء شوط جديد...</span>'}
+                </div>
+            `;
+        });
+        return; // إنهاء الوظيفة هنا لأننا في حالة عرض النتائج النهائية
+    }
+
+    // ثانياً: الحالات العادية (كتابة، تصويت، نتائج جولة)
+    document.getElementById('myAnswer').classList.remove('hidden'); // تأكد من ظهور الحقل في الحالات العادية
+
     if (data.status === "writing" && lastStatus !== "writing") {
         startSfx.play().catch(() => {});
-        document.getElementById('myAnswer').value = ""; // تصفير الحقل مرة واحدة فقط
+        document.getElementById('myAnswer').value = "";
         document.getElementById('myAnswer').disabled = false;
     }
     
@@ -236,15 +340,14 @@ onValue(ref(db, 'game'), (snap) => {
         voteSfx.play().catch(() => {});
     }
 
-    // للمسؤول: توزيع النقاط عند ظهور النتائج
     if (isAdmin && data.status === "results" && lastStatus !== "results") {
         calculatePointsAndBadges();
     }
     
     lastStatus = data.status; 
 
-    // --- 3. إدارة عرض الواجهات (UI) ---
-    if(data.status === "writing" || data.status === "results" || data.timeLeft === 0) {
+    // إدارة الـ UI للمراحل العادية
+    if(data.status === "writing" || data.status === "results") {
         answersLoaded = false;
         document.getElementById('writingPhase').classList.remove('hidden');
         document.getElementById('votingPhase').classList.add('hidden');
@@ -255,7 +358,6 @@ onValue(ref(db, 'game'), (snap) => {
             lBox.innerText = data.letter;
             lBox.classList.remove('hidden');
         } else {
-            // حالة النتائج أو الانتظار
             document.getElementById('qText').innerText = "انتظر المسؤول...";
             document.getElementById('letterDisplay').classList.add('hidden');
             document.getElementById('myAnswer').disabled = true;
@@ -285,8 +387,8 @@ onValue(ref(db, 'game'), (snap) => {
 
         sorted.forEach(p => {
             let tags = "";
-            if(p.likesGiven === maxL && maxL > 0) tags += `<span class="badge" style="background:#2ed573">❤️ الحنون</span>`;
-            if(p.dislikesGiven === maxD && maxD > 0) tags += `<span class="badge" style="background:#ff4757">🔨 المحطم</span>`;
+            if(p.likesGiven === maxL && maxL > 0) tags += `<span class="badge" style="background:#2ed573">❤️ المميز</span>`;
+            if(p.dislikesGiven === maxD && maxD > 0) tags += `<span class="badge" style="background:#ff4757">🔨 مايعجبه شي</span>`;
             pList.innerHTML += `<div class="player-item"><span>${p.name} ${tags}</span><b>${p.points}</b></div>`;
         });
         if(isAdmin) checkEveryoneVoted(players);
@@ -304,19 +406,29 @@ onValue(ref(db, 'game'), (snap) => {
     }
 
 window.startNewRound = async function() {
-    // 1. تنظيف أي عداد محلي شغال حالياً
     if(roundInterval) clearInterval(roundInterval);
     if(localTimer) clearInterval(localTimer);
 
+    // 1. التحقق من رقم الجولة الحالية
+    const gameSnap = await get(ref(db, 'game'));
+    const currentGame = gameSnap.val();
+    let currentRound = (currentGame?.roundCount || 0) + 1;
+
+    // 2. إذا وصلنا للجولة 16 (أي اكتملت الـ 15)
+    if (currentRound > 15) {
+        // نغير الحالة إلى final_results لتظهر شاشة الفائز للجميع
+        await update(ref(db, 'game'), { status: "final_results" });
+        return;
+    }
+
+    // 3. منطق اختيار الحرف والسؤال (كما هو)
     const letters = "أبتجحخدرزسشصطعغفقكلمنهوي";
     const randLetter = letters[Math.floor(Math.random()*letters.length)];
     const randQ = questions[Math.floor(Math.random()*questions.length)];
-    
-    // 2. حساب وقت النهاية (الآن + 30 ثانية)
     const duration = 30;
     const endTime = Date.now() + (duration * 1000);
 
-    // 3. تجهيز تحديثات اللاعبين (تصفير البيانات للجولة الجديدة)
+    // 4. تصفير بيانات اللاعبين للجولة الجديدة
     const pSnap = await get(ref(db, 'players'));
     const updates = {};
     if(pSnap.exists()){
@@ -329,17 +441,38 @@ window.startNewRound = async function() {
         });
     }
 
-    // 4. إرسال بيانات الجولة الجديدة لقاعدة البيانات
+    // 5. تحديث بيانات اللعبة والجولة
     updates['game'] = { 
         status: "writing", 
         letter: randLetter, 
         question: randQ, 
-        endTime: endTime, // هذا هو المفتاح الجديد
-        timeLeft: duration 
+        endTime: endTime, 
+        timeLeft: duration,
+        roundCount: currentRound 
     };
 
     await update(ref(db), updates);
 }
+
+window.resetGameForNewSeason = async function() {
+    if(!isAdmin) return;
+    if(!confirm("هل تريد تصفير النقاط وبدء شوط جديد؟")) return;
+
+    const updates = {};
+    const pSnap = await get(ref(db, 'players'));
+    if(pSnap.exists()){
+        Object.keys(pSnap.val()).forEach(id => {
+            updates[`players/${id}/points`] = 0; // تصفير النقاط الكلية
+        });
+    }
+    // تصفير عداد الجولات في قاعدة البيانات
+    updates['game/roundCount'] = 0;
+    await update(ref(db), updates);
+    
+    // بدء أول جولة في الشوط الجديد
+    startNewRound();
+};
+
 
     // وظيفة تخطي السؤال (تعيد تشغيل جولة جديدة فوراً)
     window.skipQuestion = function() {
@@ -365,19 +498,32 @@ async function startVotingPhase() {
     });
 }
 
-    window.resetGame = async function() {
-        if(!isAdmin || !confirm("تصفير الكل؟")) return;
-        const pSnap = await get(ref(db, 'players'));
-        if(pSnap.exists()){
-            const upd = {};
-            Object.keys(pSnap.val()).forEach(id => { 
-                upd[`players/${id}/points`] = 0; 
-                upd[`players/${id}/likesGiven`] = 0; 
-                upd[`players/${id}/dislikesGiven`] = 0; 
-            });
-            await update(ref(db), upd);
-        }
-    };
+window.resetGame = async function() {
+    if(!isAdmin || !confirm("هل أنت متأكد من إعادة الضبط الكامل؟ (سيتم تصفير النقاط والجولات)")) return;
+    
+    const pSnap = await get(ref(db, 'players'));
+    const updates = {};
+    
+    // 1. تصفير بيانات جميع اللاعبين
+    if(pSnap.exists()){
+        Object.keys(pSnap.val()).forEach(id => { 
+            updates[`players/${id}/points`] = 0; 
+            updates[`players/${id}/likesGiven`] = 0; 
+            updates[`players/${id}/dislikesGiven`] = 0;
+            updates[`players/${id}/currentAnswer`] = "";
+            updates[`players/${id}/hasVoted`] = false;
+        });
+    }
+    
+    // 2. تصفير عداد الجولات وإعادة حالة اللعبة للبداية
+    updates['game/roundCount'] = 0;
+    updates['game/status'] = "results"; // وضع الانتظار
+    updates['game/timeLeft'] = 0;
+
+    await update(ref(db), updates);
+    alert("تمت إعادة الضبط بنجاح!");
+};
+
 
     async function submitAnswer() {
         const ans = document.getElementById('myAnswer').value.trim() || "لم يجب";

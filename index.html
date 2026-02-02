@@ -246,6 +246,7 @@
         const letters = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي";
         const randLetter = letters[Math.floor(Math.random()*letters.length)];
         const randQ = questions[Math.floor(Math.random()*questions.length)];
+        document.getElementById('myAnswer').value = "";
         
         const pSnap = await get(ref(db, 'players'));
         if(pSnap.exists()){
@@ -308,36 +309,41 @@
         await update(playerRef, { currentAnswer: ans });
     }
 
-    async function loadAnswersForVoting() {
-        if (answersLoaded) return;
-        const div = document.getElementById('answersList');
-        div.innerHTML = "";
-        const snap = await get(ref(db, 'players'));
-        const players = snap.val();
-        const entries = Object.entries(players);
-        const myEntry = entries.find(([id]) => id === myName);
-        const others = entries.filter(([id]) => id !== myName).sort(() => Math.random() - 0.5);
-        const finalEntries = myEntry ? [myEntry, ...others] : others;
+async function loadAnswersForVoting() {
+    if (answersLoaded) return;
+    const div = document.getElementById('answersList');
+    div.innerHTML = "";
+    const snap = await get(ref(db, 'players'));
+    const players = snap.val();
+    if(!players) return;
 
-        finalEntries.forEach(([id, p]) => {
-            const isMe = (id === myName);
-            div.innerHTML += `
-                <div class="vote-card" style="${isMe ? 'border: 2px solid var(--accent);' : ''}">
-                    <div style="flex:1; text-align:right;">
-                        <small style="color:#4a4cb2; font-weight:bold;">${isMe ? 'إجابتك:' : 'لاعب مجهول:'}</small>
-                        <div style="font-size:17px; color:#000; margin-top:2px;">"${p.currentAnswer || '...'}"</div>
-                    </div>
-                    <div>
-                        ${isMe ? '' : `
-                            <button class="v-btn like-btn" onclick="vote('${id}', 'like')">👍</button>
-                            <button class="v-btn dislike-btn" onclick="vote('${id}', 'dislike')">👎</button>
-                        `}
-                    </div>
-                </div>
-            `;
-        });
-        answersLoaded = true;
-    }
+    const entries = Object.entries(players);
+    
+    // خلط ترتيب الإجابات لضمان النزاهة (Randomize)
+    const shuffled = entries.sort(() => Math.random() - 0.5);
+
+    shuffled.forEach(([id, p]) => {
+        const isMe = (id === myName);
+        const card = document.createElement('div');
+        card.className = 'vote-card';
+        if(isMe) card.style.border = '2px solid var(--accent)';
+        
+        card.innerHTML = `
+            <div style="flex:1; text-align:right;">
+                <small style="color:#4a4cb2; font-weight:bold;">${isMe ? 'إجابتك:' : 'لاعب مجهول:'}</small>
+                <div style="font-size:17px; color:#000; margin-top:2px;">"${p.currentAnswer || 'لا توجد إجابة'}"</div>
+            </div>
+            <div id="controls-${id}">
+                ${isMe ? '<span style="font-size:12px; color:gray;">إجابتك</span>' : `
+                    <button class="v-btn like-btn" onclick="vote('${id}', 'like')">👍</button>
+                    <button class="v-btn dislike-btn" onclick="vote('${id}', 'dislike')">👎</button>
+                `}
+            </div>
+        `;
+        div.appendChild(card);
+    });
+    answersLoaded = true;
+}
 
     window.vote = (targetId, type) => {
         const vRef = ref(db, `players/${targetId}/votes/${type}s`);

@@ -116,7 +116,7 @@
         <div id="writingPhase" class="question-card">
             <span class="q-line" id="qText">انتظر المسؤول...</span>
             <div id="letterDisplay" class="letter-box hidden"></div>
-            <input type="text" id="myAnswer" class="answer-input" placeholder="اكتب إجابتك هنا..." disabled autocomplete="off" spellcheck="false">
+            <input type="text" id="myAnswer" class="answer-input" placeholder="اكتب إجابتك هنا..." disabled>
         </div>
 
         <div id="votingPhase" class="voting-area hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
@@ -186,36 +186,43 @@ onValue(ref(db, 'game'), (snap) => {
     if(!data) return;
     document.getElementById('timer').innerText = data.timeLeft;
     
-    if(data.status === "writing") {
+    // الحالة الأولى: مرحلة الكتابة (أو الانتظار)
+    if(data.status === "writing" || data.status === "results" || data.timeLeft === 0) {
         answersLoaded = false;
         
-        // --- السطر السحري لحل مشكلة الهاتف ---
-        document.getElementById('myAnswer').value = ""; 
-        // -------------------------------------
-
+        // إظهار بطاقة السؤال وإخفاء منطقة التصويت
         document.getElementById('writingPhase').classList.remove('hidden');
         document.getElementById('votingPhase').classList.add('hidden');
-        document.getElementById('qText').innerText = data.question;
-        const lBox = document.getElementById('letterDisplay');
-        lBox.innerText = data.letter;
-        lBox.classList.remove('hidden');
-        document.getElementById('myAnswer').disabled = false;
+
+        if(data.status === "writing") {
+            // أثناء الجولة: عرض السؤال والحرف
+            document.getElementById('qText').innerText = data.question;
+            const lBox = document.getElementById('letterDisplay');
+            lBox.innerText = data.letter;
+            lBox.classList.remove('hidden');
+            document.getElementById('myAnswer').disabled = false;
+            document.getElementById('myAnswer').value = ""; // تفريغ الحقل تلقائياً
+        } else {
+            // وقت الانتظار (قبل البداية أو بعد النتائج): عرض الرسالة الافتراضية
+            document.getElementById('qText').innerText = "انتظر المسؤول...";
+            document.getElementById('letterDisplay').classList.add('hidden');
+            document.getElementById('myAnswer').disabled = true;
+            document.getElementById('myAnswer').value = "";
+        }
+    } 
+    // الحالة الثانية: مرحلة التصويت فقط
+    else if(data.status === "voting") {
+        document.getElementById('writingPhase').classList.add('hidden');
+        document.getElementById('votingPhase').classList.remove('hidden');
+        
+        document.getElementById('voteQuestionReminder').innerHTML = `
+            <span>${data.question}</span>
+            <span style="color:var(--accent); font-weight:900; font-size:18px;">[ ${data.letter} ]</span>
+        `;
+        submitAnswer(); 
+        setTimeout(() => { loadAnswersForVoting(); }, 1000);
     }
-        else if(data.status === "voting") {
-            document.getElementById('writingPhase').classList.add('hidden');
-            document.getElementById('votingPhase').classList.remove('hidden');
-            document.getElementById('voteQuestionReminder').innerHTML = `
-                <span>${data.question}</span>
-                <span style="color:var(--accent); font-weight:900; font-size:18px;">[ ${data.letter} ]</span>
-            `;
-            submitAnswer(); 
-            setTimeout(() => { loadAnswersForVoting(); }, 1000);
-        }
-        else if(data.status === "results") {
-            document.getElementById('votingPhase').classList.add('hidden');
-            if(isAdmin) calculatePointsAndBadges(); 
-        }
-    });
+});
 
     onValue(ref(db, 'players'), (snap) => {
         const pList = document.getElementById('playersList');

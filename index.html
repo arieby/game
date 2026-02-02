@@ -172,7 +172,13 @@
         "شيء في الثلاجة بحرف:",
         "عذر للتأخر بحرف:",
         "مهنة غريبة بحرف:",
-        "شيء في السماء بحرف:",
+        "شيء تفعله أول ما تستيقظ بحرف:",
+        "شيء تشتريه من الغدائية بحرف:",
+        "مدينة او منطقة ليبية بحرف :",
+        "شي لو فعلته لن يصدقك اصدقائك بحرف :",
+        "حاجة ضروري تكون في (السفرة) بحرف:",
+        "عذر تفتك بيه من العزومة بحرف:",
+        "حاجة تميز مدينة بنغازي أو طرابلس بحرف:",
         "أكلة شعبية بحرف:",
         "شيء يضحك بحرف:",
         "كذبة بيضاء بحرف:"
@@ -185,9 +191,11 @@ let lastStatus = "";
 let localTimer;
 
 // تعريف ملفات الصوت (تأكد من وجود إنترنت لتحميلها)
-const startSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'); 
-const tickSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2044/2044-preview.mp3');  
-const voteSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');  
+const startSfx = new Audio('https://www.soundjay.com/buttons_c2026/sounds/button-09a.mp3'); 
+const tickSfx = new Audio('');  
+const voteSfx = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
+const endSfx = new Audio('https://www.soundjay.com/buttons/sounds/beep-07.mp3'); // صوت صافرة النهاية 
+
 
 onValue(ref(db, 'game'), (snap) => {
     const data = snap.val();
@@ -300,7 +308,7 @@ window.startNewRound = async function() {
     if(roundInterval) clearInterval(roundInterval);
     if(localTimer) clearInterval(localTimer);
 
-    const letters = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي";
+    const letters = "أبتجحخدرزسشصطعغفقكلمنهوي";
     const randLetter = letters[Math.floor(Math.random()*letters.length)];
     const randQ = questions[Math.floor(Math.random()*questions.length)];
     

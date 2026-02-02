@@ -116,7 +116,7 @@
         <div id="writingPhase" class="question-card">
             <span class="q-line" id="qText">انتظر المسؤول...</span>
             <div id="letterDisplay" class="letter-box hidden"></div>
-            <input type="text" id="myAnswer" class="answer-input" placeholder="اكتب إجابتك هنا..." disabled>
+            <input type="text" id="myAnswer" class="answer-input" placeholder="اكتب إجابتك هنا..." disabled autocomplete="off" spellcheck="false">
         </div>
 
         <div id="votingPhase" class="voting-area hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
@@ -181,21 +181,26 @@
     let answersLoaded = false;
     let roundInterval;
 
-    onValue(ref(db, 'game'), (snap) => {
-        const data = snap.val();
-        if(!data) return;
-        document.getElementById('timer').innerText = data.timeLeft;
+onValue(ref(db, 'game'), (snap) => {
+    const data = snap.val();
+    if(!data) return;
+    document.getElementById('timer').innerText = data.timeLeft;
+    
+    if(data.status === "writing") {
+        answersLoaded = false;
         
-        if(data.status === "writing") {
-            answersLoaded = false;
-            document.getElementById('writingPhase').classList.remove('hidden');
-            document.getElementById('votingPhase').classList.add('hidden');
-            document.getElementById('qText').innerText = data.question;
-            const lBox = document.getElementById('letterDisplay');
-            lBox.innerText = data.letter;
-            lBox.classList.remove('hidden');
-            document.getElementById('myAnswer').disabled = false;
-        } 
+        // --- السطر السحري لحل مشكلة الهاتف ---
+        document.getElementById('myAnswer').value = ""; 
+        // -------------------------------------
+
+        document.getElementById('writingPhase').classList.remove('hidden');
+        document.getElementById('votingPhase').classList.add('hidden');
+        document.getElementById('qText').innerText = data.question;
+        const lBox = document.getElementById('letterDisplay');
+        lBox.innerText = data.letter;
+        lBox.classList.remove('hidden');
+        document.getElementById('myAnswer').disabled = false;
+    }
         else if(data.status === "voting") {
             document.getElementById('writingPhase').classList.add('hidden');
             document.getElementById('votingPhase').classList.remove('hidden');

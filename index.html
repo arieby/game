@@ -60,6 +60,36 @@
         .change-name-btn { background: none; border: 1px dashed rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); padding: 8px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-top: 10px; width: 100%; font-family: 'Cairo'; }
 
         .hidden { display: none !important; }
+        /* إصلاحات الهاتف */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column; /* تحويل الترتيب من أفقي إلى عمودي */
+        overflow-y: auto; /* السماح بالتمرير الرأسي */
+    }
+
+    .sidebar {
+        width: 100%; /* القائمة تأخذ كامل العرض */
+        border-left: none;
+        border-bottom: 3px solid rgba(0,0,0,0.1);
+        height: auto; /* ارتفاع مرن */
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+    .main-content {
+        width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+    .question-card {
+        width: 95%; /* توسيع البطاقة قليلاً لتناسب الشاشة */
+    }
+
+    .btn-group {
+        flex-direction: row; /* إبقاء الأزرار بجانب بعضها أو تحويلها لعمودية */
+    }
+}
     </style>
 </head>
 <body>

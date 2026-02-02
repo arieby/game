@@ -182,13 +182,38 @@
     let roundInterval;
 
 let lastStatus = ""; 
+let localTimer; // متغير لتخزين العداد المحلي
 
 onValue(ref(db, 'game'), (snap) => {
     const data = snap.val();
     if(!data) return;
     
-    document.getElementById('timer').innerText = data.timeLeft;
-    
+    // --- منطق العداد المطور ---
+    // تنظيف أي عداد قديم لمنع تضارب الأرقام
+    if(localTimer) clearInterval(localTimer);
+
+    const updateDisplay = () => {
+        const now = Date.now();
+        // حساب الفرق بين وقت النهاية المخزن والوقت الحالي
+        const diff = Math.max(0, Math.floor((data.endTime - now) / 1000));
+        document.getElementById('timer').innerText = diff;
+
+        // للمسؤول فقط: التحكم في الانتقال بين المراحل عند انتهاء الوقت
+        if (isAdmin && diff <= 0) {
+            clearInterval(localTimer);
+            if (data.status === "writing") {
+                startVotingPhase(); // انتقال تلقائي للتصويت
+            } else if (data.status === "voting") {
+                update(ref(db, 'game'), { status: "results", timeLeft: 0 });
+            }
+        }
+    };
+
+    // تشغيل العداد فوراً وتحديثه كل ثانية
+    localTimer = setInterval(updateDisplay, 1000);
+    updateDisplay(); 
+    // -------------------------
+
     // 1. معالجة تصفير الحقل عند بداية الجولة فقط
     if (data.status === "writing" && lastStatus !== "writing") {
         document.getElementById('myAnswer').value = ""; 
@@ -214,7 +239,6 @@ onValue(ref(db, 'game'), (snap) => {
             lBox.innerText = data.letter;
             lBox.classList.remove('hidden');
         } else {
-            // في حالة النتائج أو الانتظار
             document.getElementById('qText').innerText = "انتظر المسؤول...";
             document.getElementById('letterDisplay').classList.add('hidden');
             document.getElementById('myAnswer').disabled = true;
@@ -262,34 +286,43 @@ onValue(ref(db, 'game'), (snap) => {
         }
     }
 
-    window.startNewRound = async function() {
-        if(roundInterval) clearInterval(roundInterval);
-        const letters = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي";
-        const randLetter = letters[Math.floor(Math.random()*letters.length)];
-        const randQ = questions[Math.floor(Math.random()*questions.length)];
-        document.getElementById('myAnswer').value = "";
-        
-        const pSnap = await get(ref(db, 'players'));
-        if(pSnap.exists()){
-            const upd = {};
-            Object.keys(pSnap.val()).forEach(id => {
-                upd[`players/${id}/currentAnswer`] = "";
-                upd[`players/${id}/votes`] = { likes: 0, dislikes: 0 };
-                upd[`players/${id}/hasVoted`] = false;
-                upd[`players/${id}/temp_likes`] = 0;
-                upd[`players/${id}/temp_dislikes`] = 0;
-            });
-            await update(ref(db), upd);
-        }
+window.startNewRound = async function() {
+    // 1. تنظيف أي عداد محلي شغال حالياً
+    if(roundInterval) clearInterval(roundInterval);
+    if(localTimer) clearInterval(localTimer);
 
-        let time = 30;
-        await update(ref(db, 'game'), { status: "writing", letter: randLetter, question: randQ, timeLeft: time });
-        roundInterval = setInterval(() => {
-            time--;
-            update(ref(db, 'game'), { timeLeft: time });
-            if(time <= 0) { clearInterval(roundInterval); startVotingPhase(); }
-        }, 1000);
+    const letters = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي";
+    const randLetter = letters[Math.floor(Math.random()*letters.length)];
+    const randQ = questions[Math.floor(Math.random()*questions.length)];
+    
+    // 2. حساب وقت النهاية (الآن + 30 ثانية)
+    const duration = 30;
+    const endTime = Date.now() + (duration * 1000);
+
+    // 3. تجهيز تحديثات اللاعبين (تصفير البيانات للجولة الجديدة)
+    const pSnap = await get(ref(db, 'players'));
+    const updates = {};
+    if(pSnap.exists()){
+        Object.keys(pSnap.val()).forEach(id => {
+            updates[`players/${id}/currentAnswer`] = "";
+            updates[`players/${id}/hasVoted`] = false;
+            updates[`players/${id}/votes`] = { likes: 0, dislikes: 0 };
+            updates[`players/${id}/temp_likes`] = 0;
+            updates[`players/${id}/temp_dislikes`] = 0;
+        });
     }
+
+    // 4. إرسال بيانات الجولة الجديدة لقاعدة البيانات
+    updates['game'] = { 
+        status: "writing", 
+        letter: randLetter, 
+        question: randQ, 
+        endTime: endTime, // هذا هو المفتاح الجديد
+        timeLeft: duration 
+    };
+
+    await update(ref(db), updates);
+}
 
     // وظيفة تخطي السؤال (تعيد تشغيل جولة جديدة فوراً)
     window.skipQuestion = function() {
@@ -298,18 +331,22 @@ onValue(ref(db, 'game'), (snap) => {
         }
     };
 
-    async function startVotingPhase() {
-        let time = 20;
-        await update(ref(db, 'game'), { status: "voting", timeLeft: time });
-        roundInterval = setInterval(() => {
-            time--;
-            update(ref(db, 'game'), { timeLeft: time });
-            if(time <= 0) {
-                clearInterval(roundInterval);
-                update(ref(db, 'game'), { status: "results", timeLeft: 0 });
-            }
-        }, 1000);
-    }
+async function startVotingPhase() {
+    // 1. تنظيف العدادات قبل بدء المرحلة الجديدة
+    if(roundInterval) clearInterval(roundInterval);
+    if(localTimer) clearInterval(localTimer);
+
+    // 2. حساب وقت نهاية التصويت (الآن + 20 ثانية)
+    const duration = 20;
+    const endTime = Date.now() + (duration * 1000);
+
+    // 3. تحديث حالة اللعبة إلى التصويت
+    await update(ref(db, 'game'), { 
+        status: "voting", 
+        endTime: endTime,
+        timeLeft: duration 
+    });
+}
 
     window.resetGame = async function() {
         if(!isAdmin || !confirm("تصفير الكل؟")) return;

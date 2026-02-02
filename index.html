@@ -181,7 +181,7 @@
     let answersLoaded = false;
     let roundInterval;
 
-let lastStatus = ""; // متغير لمراقبة تغير الحالة
+let lastStatus = ""; 
 
 onValue(ref(db, 'game'), (snap) => {
     const data = snap.val();
@@ -189,14 +189,20 @@ onValue(ref(db, 'game'), (snap) => {
     
     document.getElementById('timer').innerText = data.timeLeft;
     
-    // تنفيذ المسح فقط إذا تغيرت الحالة فعلياً من حالة أخرى إلى الكتابة
+    // 1. معالجة تصفير الحقل عند بداية الجولة فقط
     if (data.status === "writing" && lastStatus !== "writing") {
         document.getElementById('myAnswer').value = ""; 
         document.getElementById('myAnswer').disabled = false;
     }
     
-    lastStatus = data.status; // تحديث الحالة الأخيرة
+    // 2. معالجة احتساب النقاط (للمسؤول فقط) عند الانتقال لنتائج الجولة
+    if (isAdmin && data.status === "results" && lastStatus !== "results") {
+        calculatePointsAndBadges();
+    }
+    
+    lastStatus = data.status; 
 
+    // 3. إدارة عرض الواجهات
     if(data.status === "writing" || data.status === "results" || data.timeLeft === 0) {
         answersLoaded = false;
         document.getElementById('writingPhase').classList.remove('hidden');
@@ -207,12 +213,11 @@ onValue(ref(db, 'game'), (snap) => {
             const lBox = document.getElementById('letterDisplay');
             lBox.innerText = data.letter;
             lBox.classList.remove('hidden');
-            // حذف سطر المسح من هنا لأنه أصبح في الأعلى بشرط التغير
         } else {
+            // في حالة النتائج أو الانتظار
             document.getElementById('qText').innerText = "انتظر المسؤول...";
             document.getElementById('letterDisplay').classList.add('hidden');
             document.getElementById('myAnswer').disabled = true;
-            // لا تضع value = "" هنا بشكل مستمر لمنع الـ Refresh
         }
     } 
     else if(data.status === "voting") {

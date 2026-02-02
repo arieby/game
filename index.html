@@ -181,36 +181,40 @@
     let answersLoaded = false;
     let roundInterval;
 
+let lastStatus = ""; // متغير لمراقبة تغير الحالة
+
 onValue(ref(db, 'game'), (snap) => {
     const data = snap.val();
     if(!data) return;
+    
     document.getElementById('timer').innerText = data.timeLeft;
     
-    // الحالة الأولى: مرحلة الكتابة (أو الانتظار)
+    // تنفيذ المسح فقط إذا تغيرت الحالة فعلياً من حالة أخرى إلى الكتابة
+    if (data.status === "writing" && lastStatus !== "writing") {
+        document.getElementById('myAnswer').value = ""; 
+        document.getElementById('myAnswer').disabled = false;
+    }
+    
+    lastStatus = data.status; // تحديث الحالة الأخيرة
+
     if(data.status === "writing" || data.status === "results" || data.timeLeft === 0) {
         answersLoaded = false;
-        
-        // إظهار بطاقة السؤال وإخفاء منطقة التصويت
         document.getElementById('writingPhase').classList.remove('hidden');
         document.getElementById('votingPhase').classList.add('hidden');
 
         if(data.status === "writing") {
-            // أثناء الجولة: عرض السؤال والحرف
             document.getElementById('qText').innerText = data.question;
             const lBox = document.getElementById('letterDisplay');
             lBox.innerText = data.letter;
             lBox.classList.remove('hidden');
-            document.getElementById('myAnswer').disabled = false;
-            document.getElementById('myAnswer').value = ""; // تفريغ الحقل تلقائياً
+            // حذف سطر المسح من هنا لأنه أصبح في الأعلى بشرط التغير
         } else {
-            // وقت الانتظار (قبل البداية أو بعد النتائج): عرض الرسالة الافتراضية
             document.getElementById('qText').innerText = "انتظر المسؤول...";
             document.getElementById('letterDisplay').classList.add('hidden');
             document.getElementById('myAnswer').disabled = true;
-            document.getElementById('myAnswer').value = "";
+            // لا تضع value = "" هنا بشكل مستمر لمنع الـ Refresh
         }
     } 
-    // الحالة الثانية: مرحلة التصويت فقط
     else if(data.status === "voting") {
         document.getElementById('writingPhase').classList.add('hidden');
         document.getElementById('votingPhase').classList.remove('hidden');

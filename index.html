@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الأساطير - النسخة الاحترافية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --main-bg: #5d5fef; --sidebar-bg: #4a4cb2; --accent: #00ffcc; --danger: #ff4757; --warning: #ffbc00; }
+        body { font-family: 'Cairo', sans-serif; background: var(--main-bg); margin: 0; display: flex; height: 100vh; color: white; overflow: hidden; }
+        
+        /* القائمة الجانبية */
+        .sidebar { width: 280px; background: var(--sidebar-bg); padding: 20px; display: flex; flex-direction: column; border-left: 3px solid rgba(0,0,0,0.1); justify-content: space-between; }
+        .players-section { flex-grow: 1; overflow-y: auto; }
+        .player-item { background: rgba(255,255,255,0.1); margin: 5px 0; padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .badge { font-size: 11px; padding: 2px 6px; border-radius: 5px; margin-right: 5px; font-weight: bold; color: #202231; }
+
+        /* المحتوى الرئيسي */
+        .main-content { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; overflow-y: auto; }
+        .timer-circle { width: 60px; height: 60px; border-radius: 50%; border: 4px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; margin-bottom: 15px; }
+        
+        /* بطاقة السؤال الأساسية */
+        .question-card { background: #202231; padding: 25px; border-radius: 20px; text-align: center; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .q-line { font-size: 20px; color: white; display: block; margin-bottom: 12px; }
+        .letter-box { display: inline-block; background: var(--accent); color: #202231; width: 55px; height: 55px; line-height: 55px; border-radius: 12px; font-size: 32px; font-weight: 900; }
+        
+        .answer-input { width: 90%; padding: 12px; border-radius: 12px; border: none; font-size: 18px; text-align: center; font-family: 'Cairo'; margin-top: 15px; }
+        
+        /* صندوق تذكير السؤال في التصويت */
+        .vote-q-reminder { 
+            background: #000; 
+            color: #fff; 
+            padding: 10px 20px; 
+            border-radius: 50px; 
+            margin: 10px 0 20px 0; 
+            border: 2px solid var(--accent); 
+            font-size: 15px; 
+            text-align: center; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            max-width: 80%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .vote-card { background: #fff; color: #202231; margin: 8px 0; padding: 12px; border-radius: 15px; display: flex; align-items: center; justify-content: space-between; width: 90%; max-width: 600px; }
+        .v-btn { border: none; padding: 8px 15px; border-radius: 10px; cursor: pointer; font-size: 18px; transition: 0.2s; }
+        .like-btn { background: #2ed573; color: white; }
+        .dislike-btn { background: var(--danger); color: white; }
+
+        /* أزرار الإدارة */
+        .admin-btn { width: 100%; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 8px; color: #202231; transition: 0.3s; }
+        .btn-group { display: flex; gap: 5px; }
+        .btn-new { background: var(--accent); flex: 2; }
+        .btn-skip { background: var(--warning); flex: 1; }
+        .btn-reset { background: var(--danger); color: white; }
+        .admin-btn:hover { opacity: 0.8; transform: translateY(-2px); }
+        
+        .change-name-btn { background: none; border: 1px dashed rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); padding: 8px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-top: 10px; width: 100%; font-family: 'Cairo'; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="players-section">
+            <h3>اللاعبون ⭐</h3>
+            <div id="playersList"></div>
+            
+            <div id="adminPanel" style="display:none; margin-top:20px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
+                <div class="btn-group">
+                    <button onclick="startNewRound()" class="admin-btn btn-new">🚀 جولة جديدة</button>
+                    <button onclick="skipQuestion()" class="admin-btn btn-skip">⏭️ تخطي</button>
+                </div>
+                <button onclick="resetGame()" class="admin-btn btn-reset">🔄 إعادة ضبط كاملة</button>
+            </div>
+        </div>
+        <button onclick="changeName()" class="change-name-btn">👤 تغيير الاسم</button>
+    </div>
+
+    <div class="main-content">
+        <div class="timer-circle" id="timer">0</div>
+        
+        <div id="writingPhase" class="question-card">
+            <span class="q-line" id="qText">انتظر المسؤول...</span>
+            <div id="letterDisplay" class="letter-box hidden"></div>
+            <input type="text" id="myAnswer" class="answer-input" placeholder="اكتب إجابتك هنا..." disabled>
+        </div>
+
+        <div id="votingPhase" class="voting-area hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+            <h3 style="margin:0;">صوّت الآن 🤔</h3>
+            <div id="voteQuestionReminder" class="vote-q-reminder"></div>
+            <div id="answersList" style="width: 100%; display: flex; flex-direction: column; align-items: center;"></div>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update, get, onDisconnect } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCACieEWRf3YtwHPxqbrOVrFwCYjnfFX4I",
+        authDomain: "arabicstopgame.firebaseapp.com",
+        databaseURL: "https://arabicstopgame-default-rtdb.europe-west1.firebasedatabase.app/",
+        projectId: "arabicstopgame",
+        storageBucket: "arabicstopgame.firebasestorage.app",
+        messagingSenderId: "382758047507",
+        appId: "1:382758047507:web:2c4f49c33ff5d6dd4d14e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let myName = localStorage.getItem('savedPlayerName');
+    if (!myName) {
+        myName = prompt("أدخل اسمك:") || "لاعب" + Math.floor(Math.random()*100);
+        localStorage.setItem('savedPlayerName', myName);
+    }
+
+    const playerRef = ref(db, 'players/' + myName);
+    const isAdmin = (myName.toLowerCase() === "ahmed");
+
+    if(isAdmin) document.getElementById('adminPanel').style.display = 'block';
+
+    set(playerRef, { 
+        name: myName, points: 0, likesGiven: 0, dislikesGiven: 0, 
+        currentAnswer: "", hasVoted: false, temp_likes: 0, temp_dislikes: 0 
+    });
+    onDisconnect(playerRef).remove();
+
+    window.changeName = function() {
+        const newName = prompt("أدخل الاسم الجديد:");
+        if(newName) {
+            localStorage.setItem('savedPlayerName', newName);
+            location.reload();
+        }
+    };
+
+    const questions = [
+        "شيء في الثلاجة بحرف:",
+        "عذر للتأخر بحرف:",
+        "مهنة غريبة بحرف:",
+        "شيء في السماء بحرف:",
+        "أكلة شعبية بحرف:",
+        "شيء يضحك بحرف:",
+        "كذبة بيضاء بحرف:"
+    ];
+
+    let answersLoaded = false;
+    let roundInterval;
+
+    onValue(ref(db, 'game'), (snap) => {
+        const data = snap.val();
+        if(!data) return;
+        document.getElementById('timer').innerText = data.timeLeft;
+        
+        if(data.status === "writing") {
+            answersLoaded = false;
+            document.getElementById('writingPhase').classList.remove('hidden');
+            document.getElementById('votingPhase').classList.add('hidden');
+            document.getElementById('qText').innerText = data.question;
+            const lBox = document.getElementById('letterDisplay');
+            lBox.innerText = data.letter;
+            lBox.classList.remove('hidden');
+            document.getElementById('myAnswer').disabled = false;
+        } 
+        else if(data.status === "voting") {
+            document.getElementById('writingPhase').classList.add('hidden');
+            document.getElementById('votingPhase').classList.remove('hidden');
+            document.getElementById('voteQuestionReminder').innerHTML = `
+                <span>${data.question}</span>
+                <span style="color:var(--accent); font-weight:900; font-size:18px;">[ ${data.letter} ]</span>
+            `;
+            submitAnswer(); 
+            setTimeout(() => { loadAnswersForVoting(); }, 1000);
+        }
+        else if(data.status === "results") {
+            document.getElementById('votingPhase').classList.add('hidden');
+            if(isAdmin) calculatePointsAndBadges(); 
+        }
+    });
+
+    onValue(ref(db, 'players'), (snap) => {
+        const pList = document.getElementById('playersList');
+        pList.innerHTML = "";
+        const players = snap.val();
+        if(!players) return;
+        const sorted = Object.values(players).sort((a,b) => b.points - a.points);
+        const maxL = Math.max(...sorted.map(p => p.likesGiven || 0));
+        const maxD = Math.max(...sorted.map(p => p.dislikesGiven || 0));
+
+        sorted.forEach(p => {
+            let tags = "";
+            if(p.likesGiven === maxL && maxL > 0) tags += `<span class="badge" style="background:#2ed573">❤️ الحنون</span>`;
+            if(p.dislikesGiven === maxD && maxD > 0) tags += `<span class="badge" style="background:#ff4757">🔨 المحطم</span>`;
+            pList.innerHTML += `<div class="player-item"><span>${p.name} ${tags}</span><b>${p.points}</b></div>`;
+        });
+        if(isAdmin) checkEveryoneVoted(players);
+    });
+
+    async function checkEveryoneVoted(players) {
+        const allPlayers = Object.values(players);
+        const gameSnap = await get(ref(db, 'game'));
+        if(gameSnap.val()?.status !== "voting") return;
+        const votedCount = allPlayers.filter(p => p.hasVoted).length;
+        if(votedCount >= allPlayers.length && allPlayers.length > 0) {
+            clearInterval(roundInterval);
+            update(ref(db, 'game'), { status: "results", timeLeft: 0 });
+        }
+    }
+
+    window.startNewRound = async function() {
+        if(roundInterval) clearInterval(roundInterval);
+        const letters = "أبتثجحخدذرزسشصضطظعغفقكلمنهوي";
+        const randLetter = letters[Math.floor(Math.random()*letters.length)];
+        const randQ = questions[Math.floor(Math.random()*questions.length)];
+        
+        const pSnap = await get(ref(db, 'players'));
+        if(pSnap.exists()){
+            const upd = {};
+            Object.keys(pSnap.val()).forEach(id => {
+                upd[`players/${id}/currentAnswer`] = "";
+                upd[`players/${id}/votes`] = { likes: 0, dislikes: 0 };
+                upd[`players/${id}/hasVoted`] = false;
+                upd[`players/${id}/temp_likes`] = 0;
+                upd[`players/${id}/temp_dislikes`] = 0;
+            });
+            await update(ref(db), upd);
+        }
+
+        let time = 30;
+        await update(ref(db, 'game'), { status: "writing", letter: randLetter, question: randQ, timeLeft: time });
+        roundInterval = setInterval(() => {
+            time--;
+            update(ref(db, 'game'), { timeLeft: time });
+            if(time <= 0) { clearInterval(roundInterval); startVotingPhase(); }
+        }, 1000);
+    }
+
+    // وظيفة تخطي السؤال (تعيد تشغيل جولة جديدة فوراً)
+    window.skipQuestion = function() {
+        if(confirm("هل تريد تخطي هذا السؤال؟")) {
+            startNewRound();
+        }
+    };
+
+    async function startVotingPhase() {
+        let time = 20;
+        await update(ref(db, 'game'), { status: "voting", timeLeft: time });
+        roundInterval = setInterval(() => {
+            time--;
+            update(ref(db, 'game'), { timeLeft: time });
+            if(time <= 0) {
+                clearInterval(roundInterval);
+                update(ref(db, 'game'), { status: "results", timeLeft: 0 });
+            }
+        }, 1000);
+    }
+
+    window.resetGame = async function() {
+        if(!isAdmin || !confirm("تصفير الكل؟")) return;
+        const pSnap = await get(ref(db, 'players'));
+        if(pSnap.exists()){
+            const upd = {};
+            Object.keys(pSnap.val()).forEach(id => { 
+                upd[`players/${id}/points`] = 0; 
+                upd[`players/${id}/likesGiven`] = 0; 
+                upd[`players/${id}/dislikesGiven`] = 0; 
+            });
+            await update(ref(db), upd);
+        }
+    };
+
+    async function submitAnswer() {
+        const ans = document.getElementById('myAnswer').value.trim() || "لم يجب";
+        await update(playerRef, { currentAnswer: ans });
+    }
+
+    async function loadAnswersForVoting() {
+        if (answersLoaded) return;
+        const div = document.getElementById('answersList');
+        div.innerHTML = "";
+        const snap = await get(ref(db, 'players'));
+        const players = snap.val();
+        const entries = Object.entries(players);
+        const myEntry = entries.find(([id]) => id === myName);
+        const others = entries.filter(([id]) => id !== myName).sort(() => Math.random() - 0.5);
+        const finalEntries = myEntry ? [myEntry, ...others] : others;
+
+        finalEntries.forEach(([id, p]) => {
+            const isMe = (id === myName);
+            div.innerHTML += `
+                <div class="vote-card" style="${isMe ? 'border: 2px solid var(--accent);' : ''}">
+                    <div style="flex:1; text-align:right;">
+                        <small style="color:#4a4cb2; font-weight:bold;">${isMe ? 'إجابتك:' : 'لاعب مجهول:'}</small>
+                        <div style="font-size:17px; color:#000; margin-top:2px;">"${p.currentAnswer || '...'}"</div>
+                    </div>
+                    <div>
+                        ${isMe ? '' : `
+                            <button class="v-btn like-btn" onclick="vote('${id}', 'like')">👍</button>
+                            <button class="v-btn dislike-btn" onclick="vote('${id}', 'dislike')">👎</button>
+                        `}
+                    </div>
+                </div>
+            `;
+        });
+        answersLoaded = true;
+    }
+
+    window.vote = (targetId, type) => {
+        const vRef = ref(db, `players/${targetId}/votes/${type}s`);
+        get(vRef).then(s => set(vRef, (s.val() || 0) + 1));
+        const tRef = ref(db, `players/${myName}/temp_${type}s`);
+        get(tRef).then(s => set(tRef, (s.val() || 0) + 1));
+        update(playerRef, { hasVoted: true });
+        event.target.parentElement.innerHTML = "✅";
+    };
+
+    async function calculatePointsAndBadges() {
+        const snap = await get(ref(db, 'players'));
+        const players = snap.val();
+        const updates = {};
+        Object.entries(players).forEach(([id, p]) => {
+            const l = p.votes?.likes || 0;
+            const d = p.votes?.dislikes || 0;
+            let gain = (l > 0 && d === 0) ? 20 : (l > d ? 10 : 0);
+            if(gain > 0) updates[`players/${id}/points`] = (p.points || 0) + gain;
+            updates[`players/${id}/likesGiven`] = (p.likesGiven || 0) + (p.temp_likes || 0);
+            updates[`players/${id}/dislikesGiven`] = (p.dislikesGiven || 0) + (p.temp_dislikes || 0);
+            updates[`players/${id}/temp_likes`] = 0;
+            updates[`players/${id}/temp_dislikes`] = 0;
+        });
+        if(Object.keys(updates).length > 0) update(ref(db), updates);
+    }
+</script>
+</body>
+</html>
